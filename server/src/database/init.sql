@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS users (
     email TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL,
     isLocked BOOLEAN DEFAULT 0,
+    locked_until TIMESTAMP DEFAULT NULL,
     failedAttempts INTEGER DEFAULT 0,
     otpSecret TEXT -- For 2FA (TOTP-based authentication)
 );

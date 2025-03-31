@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
+import cookieParser from "cookie-parser"
 
 import authRoutes from "./routes/auth.js";
 
@@ -9,6 +10,7 @@ app.use(express.json());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cors());
+app.use(cookieParser())
 
 app.use("/auth", authRoutes);
 
