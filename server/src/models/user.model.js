@@ -99,3 +99,28 @@ export const unlockUserAccount = async (email) => {
     );
   });
 };
+
+
+// Enable 2FA
+export const enable2FA = (email, otpSecret) => {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `UPDATE users SET otpSecret = ?, is2FAEnabled = 1 WHERE email = ?`,
+      [otpSecret, email],
+      function (err) {
+        if (err) reject(err);
+        else resolve(this.changes);
+      }
+    );
+  });
+};
+
+// Get user OTP secret
+export const getUserOTPSecret = (email) => {
+  return new Promise((resolve, reject) => {
+    db.get(`SELECT otpSecret FROM users WHERE email = ?`, [email], (err, row) => {
+      if (err) reject(err);
+      else resolve(row);
+    });
+  });
+};

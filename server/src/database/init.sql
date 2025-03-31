@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
     isLocked BOOLEAN DEFAULT 0,
     locked_until TIMESTAMP DEFAULT NULL,
     failedAttempts INTEGER DEFAULT 0,
+    is2FAEnabled BOOLEAN DEFAULT 0,
     otpSecret TEXT -- For 2FA (TOTP-based authentication)
 );
 

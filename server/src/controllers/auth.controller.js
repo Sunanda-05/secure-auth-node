@@ -5,11 +5,15 @@ import {
   updateFailedAttempts,
   lockUserAccount,
   unlockUserAccount,
+  enable2FA,
+  getUserOTPSecret
 } from "../models/user.model.js";
 import {
   deleteRefreshToken,
   getRefreshToken,
 } from "../models/refreshToken.model.js";
+import speakeasy from "speakeasy";
+import QRCode from "qrcode";
 
 const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET;
 const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET;
@@ -19,7 +23,7 @@ const LOCK_DURATION = 15 * 60 * 1000;
 
 export const loginUser = async (request, response) => {
   try {
-    const { email, password } = request.body;
+    const { email, password, otpToken } = request.body;
 
     if (!email || !password) {
       return response
@@ -57,6 +61,27 @@ export const loginUser = async (request, response) => {
       return response.status(401).json({ error: "Wrong password." });
     }
 
+    // If 2FA is enabled, require OTP code
+    if (user.is2FAEnabled) {
+      if (!otpToken) {
+        return response
+          .status(400)
+          .json({ message: "Enter your 2FA code", requires2FA: true });
+      }
+
+      // Verify OTP Token
+      const userSecret = await getUserOTPSecret(email);
+      const isValidOTP = speakeasy.totp.verify({
+        secret: userSecret.otpSecret,
+        encoding: "base32",
+        token: otpToken,
+        window: 1, // Accept slightly old/new codes
+      });
+
+      if (!isValidOTP)
+        return response.status(401).json({ error: "Invalid 2FA code" });
+    }
+
     await updateFailedAttempts(email, 0);
     await unlockUserAccount(email);
 
@@ -84,7 +109,7 @@ export const loginUser = async (request, response) => {
     });
   } catch (error) {
     console.error("Error in loginUser:", error);
-    return res.status(500).json({ error: "Internal server error." });
+    return response.status(500).json({ error: "Internal server error." });
   }
 };
 
@@ -116,14 +141,40 @@ export const refreshTokens = async (request, response) => {
     });
   } catch (error) {
     console.error("Error in Refresh Token:", error);
-    return res.status(500).json({ error: "Internal server error." });
+    return response.status(500).json({ error: "Internal server error." });
   }
 };
 
 export const logoutUser = async (request, response) => {
-  const refreshToken = request.cookies.refreshToken;
-  await deleteRefreshToken(refreshToken);
+  try {
+    const refreshToken = request.cookies.refreshToken;
+    await deleteRefreshToken(refreshToken);
 
-  response.clearCookie("refreshToken");
-  return response.json({ message: "Logged out successfully" });
+    response.clearCookie("refreshToken");
+    return response.json({ message: "Logged out successfully" });
+  } catch (error) {
+    console.error("Error in Refresh Token:", error);
+    return response.status(500).json({ error: "Internal server error." });
+  }
+};
+
+export const enable2FAFunction = async (request, response) => {
+  try {
+    const { email } = request.body;
+    const secret = speakeasy.generateSecret({ length: 20 });
+    await enable2FA(email, secret.base32);
+
+    // QR code for Google Authenticator
+    const otpAuthUrl = `otpauth://totp/AuthLite:${email}?secret=${secret.base32}&issuer=AuthLite`;
+
+    QRCode.toDataURL(otpAuthUrl, (err, dataUrl) => {
+      if (err)
+        return response.status(500).json({ error: "Failed to generate QR code" });
+
+      response.json({ qrCode: dataUrl, secret: secret.base32 });
+    });
+  } catch (error) {
+    console.error("Error in Refresh Token:", error);
+    return response.status(500).json({ error: "Internal server error." });
+  }
 };
